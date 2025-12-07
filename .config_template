@@ -2,5 +2,9 @@
     "module_name": "cli_manager",
     "path": {
         "data": "./project/data/cli_manager"
+    },
+    "admin_cli": {
+        "filename": "admin_cli.py",
+        "output_dir": "./"
     }
 }
