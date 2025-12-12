@@ -187,6 +187,8 @@ class CLIManager:
                 aliases=aliases,
                 help=module_desc or f"Commands for {module_name}",
             )
+            # Set module name explicitly to prevent collision with user args
+            module_parser.set_defaults(_cli_module=module_name)
 
             # Add command subparsers
             cmd_subparsers = module_parser.add_subparsers(
@@ -201,6 +203,8 @@ class CLIManager:
                     cmd_data["name"],
                     help=cmd_data.get("help", ""),
                 )
+                # Set command name explicitly to prevent collision with user args
+                cmd_parser.set_defaults(_cli_command=cmd_data["name"])
 
                 # Add arguments
                 for arg_data in cmd_data.get("args", []):
@@ -265,7 +269,11 @@ class CLIManager:
 
         Returns exit code (0 for success, non-zero for failure).
         """
-        if not args.module:
+        # Use collision-proof attributes with fallback to standard ones
+        module_name = getattr(args, '_cli_module', None) or getattr(args, 'module', None)
+        command_name = getattr(args, '_cli_command', None) or getattr(args, 'command', None)
+
+        if not module_name:
             return 1
 
         registry = self._load_registry()
@@ -273,29 +281,29 @@ class CLIManager:
         # Find module by name or short_name
         module_data = None
         for data in registry.values():
-            if data["module_name"] == args.module:
+            if data["module_name"] == module_name:
                 module_data = data
                 break
-            if data.get("short_name") == args.module:
+            if data.get("short_name") == module_name:
                 module_data = data
                 break
 
         if not module_data:
-            self.logger.error(f"Module '{args.module}' not found in registry")
+            self.logger.error(f"Module '{module_name}' not found in registry")
             return 1
 
-        if not args.command:
+        if not command_name:
             return 1
 
         # Find command
         cmd_data = None
         for cmd in module_data.get("commands", []):
-            if cmd["name"] == args.command:
+            if cmd["name"] == command_name:
                 cmd_data = cmd
                 break
 
         if not cmd_data:
-            self.logger.error(f"Command '{args.command}' not found in module '{args.module}'")
+            self.logger.error(f"Command '{command_name}' not found in module '{module_name}'")
             return 1
 
         handler = self.resolve_handler(cmd_data["handler"])

@@ -35,16 +35,51 @@ applyTo: "managers/**/*_cli.py, plugins/**/*_cli.py, utils/**/*_cli.py, mcps/**/
 
 6. **Short Name**: Choose a concise, unique 2-4 letter alias for the module.
 
+7. **User Feedback**: CLI handlers MUST provide output to the user:
+   - Silent commands are NOT acceptable. Users need confirmation of what happened.
+   - Use the `_print_result()` helper for consistent JSON output.
+   - Handlers MUST return `_print_result(result)` where `result` is a dict with at least `{"success": bool}`.
+   - Additional fields like `message`, `data`, or `error` are encouraged.
+
+8. **Reserved Argument Names**: CLI commands MUST NOT use these argument names (they collide with argparse namespace):
+   - `module` - reserved for module routing
+   - `command` - reserved for command routing
+   
+   Use alternative names like `target_module`, `module_name`, `target_command`, `cmd_name`, etc.
+
 ## Template
 
 ```python
 """CLI commands and registration for <module_name>."""
 
+from __future__ import annotations
+
 import argparse
-import sys
+import json
 
 from <module_type>.<module_name>.<module_name> import <ModuleClass>
 from managers.cli_manager import CLIManager, ModuleRegistration, Command, CommandArg
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Controller Access
+# ─────────────────────────────────────────────────────────────────────────────
+
+_controller: <ModuleClass> | None = None
+
+
+def _get_controller() -> <ModuleClass>:
+    """Get or create the controller instance."""
+    global _controller
+    if _controller is None:
+        _controller = <ModuleClass>()
+    return _controller
+
+
+def _print_result(result: dict) -> int:
+    """Print result as JSON and return exit code."""
+    print(json.dumps(result, indent=2, default=str))
+    return 0 if result.get("success", True) else 1
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -53,14 +88,14 @@ from managers.cli_manager import CLIManager, ModuleRegistration, Command, Comman
 
 def example_command(args: argparse.Namespace) -> int:
     """Description of what this command does."""
-    # Implementation
-    return 0
+    result = _get_controller().do_something()
+    return _print_result(result)
 
 
 def command_with_args(args: argparse.Namespace) -> int:
     """Command that uses arguments."""
-    print(f"Received: {args.name}")
-    return 0
+    result = _get_controller().process(name=args.name)
+    return _print_result(result)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
