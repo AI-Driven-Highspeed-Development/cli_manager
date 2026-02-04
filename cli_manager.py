@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import importlib
 import json
 import os
+import threading
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -69,16 +71,23 @@ class CLIManager:
     """Manages CLI command registration and parser building for admin CLI."""
 
     _instance: Optional[CLIManager] = None
+    _singleton_lock: threading.Lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs) -> CLIManager:
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
+            with cls._singleton_lock:
+                # Double-check locking pattern
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self) -> None:
         if hasattr(self, "_initialized"):
             return
         self._initialized = True
+
+        # Instance-level lock for thread-safe registry operations
+        self._registry_lock = threading.Lock()
 
         self.logger = Logger(name=__class__.__name__)
         self.config = ConfigManager().config.cli_manager
@@ -95,55 +104,71 @@ class CLIManager:
             self._save_registry({})
 
     def _load_registry(self) -> dict[str, dict]:
-        """Load the command registry from disk."""
+        """Load the command registry from disk with file locking."""
         if not self._registry_file.exists():
             return {}
         try:
             with open(self._registry_file, "r") as f:
-                return json.load(f)
+                fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+                try:
+                    return json.load(f)
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         except (json.JSONDecodeError, IOError) as e:
             self.logger.warning(f"Failed to load registry: {e}")
             return {}
 
     def _save_registry(self, registry: dict[str, dict]) -> None:
-        """Save the command registry to disk."""
+        """Save the command registry to disk with file locking."""
         try:
             with open(self._registry_file, "w") as f:
-                json.dump(registry, f, indent=2)
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    json.dump(registry, f, indent=2)
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         except IOError as e:
             self.logger.error(f"Failed to save registry: {e}")
 
     def register_module(self, registration: ModuleRegistration) -> bool:
-        """Register a module's commands. Handles deduplication by module_name."""
-        registry = self._load_registry()
+        """Register a module's commands. Handles deduplication by module_name.
+        
+        Thread-safe: uses locking to ensure atomic read-modify-write.
+        """
+        with self._registry_lock:
+            registry = self._load_registry()
 
-        module_key = registration.module_name
+            module_key = registration.module_name
 
-        # Check for short_name conflicts
-        if registration.short_name:
-            for key, existing in registry.items():
-                if key != module_key and existing.get("short_name") == registration.short_name:
-                    self.logger.warning(
-                        f"Short name '{registration.short_name}' already used by "
-                        f"'{existing['module_name']}'. Ignoring short_name for '{module_key}'."
-                    )
-                    registration.short_name = None
-                    break
+            # Check for short_name conflicts
+            if registration.short_name:
+                for key, existing in registry.items():
+                    if key != module_key and existing.get("short_name") == registration.short_name:
+                        self.logger.warning(
+                            f"Short name '{registration.short_name}' already used by "
+                            f"'{existing['module_name']}'. Ignoring short_name for '{module_key}'."
+                        )
+                        registration.short_name = None
+                        break
 
-        registry[module_key] = registration.to_dict()
-        self._save_registry(registry)
-        self.logger.debug(f"Registered module: {module_key}")
-        return True
+            registry[module_key] = registration.to_dict()
+            self._save_registry(registry)
+            self.logger.debug(f"Registered module: {module_key}")
+            return True
 
     def unregister_module(self, module_name: str) -> bool:
-        """Unregister a module's commands."""
-        registry = self._load_registry()
-        if module_name in registry:
-            del registry[module_name]
-            self._save_registry(registry)
-            self.logger.debug(f"Unregistered module: {module_name}")
-            return True
-        return False
+        """Unregister a module's commands.
+        
+        Thread-safe: uses locking to ensure atomic read-modify-write.
+        """
+        with self._registry_lock:
+            registry = self._load_registry()
+            if module_name in registry:
+                del registry[module_name]
+                self._save_registry(registry)
+                self.logger.debug(f"Unregistered module: {module_name}")
+                return True
+            return False
 
     def get_registry(self) -> dict[str, dict]:
         """Get the current command registry."""

@@ -1,6 +1,6 @@
 version: 0.0.1
 folder_path: managers/cli_manager
-type: manager
+layer: runtime
 requirements:
   - https://github.com/AI-Driven-Highspeed-Development/Logger-Util.git
   - https://github.com/AI-Driven-Highspeed-Development/Config-Manager.git
