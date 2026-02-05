@@ -12,8 +12,8 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from managers.config_manager import ConfigManager
-from utils.logger_util import Logger
+from config_manager import ConfigManager
+from logger_util import Logger
 
 
 @dataclass

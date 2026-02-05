@@ -1,5 +1,5 @@
 ---
-applyTo: "managers/**/*_cli.py, plugins/**/*_cli.py, utils/**/*_cli.py, mcps/**/*_cli.py"
+applyTo: "modules/**/*_cli.py"
 ---
 
 # CLI Registration Script Guidelines
@@ -20,8 +20,8 @@ applyTo: "managers/**/*_cli.py, plugins/**/*_cli.py, utils/**/*_cli.py, mcps/**/
    - Return `int` (0 for success, non-zero for error)
    - Access arguments via `args.<argname>` (e.g., `args.key`)
 
-3. **Handler Path Format**: Use `"<module_type>.<module_name>.<filename>:<function_name>"`:
-   - Example: `"managers.secret_manager.secret_cli:list_secrets"`
+3. **Handler Path Format**: Use `"modules.<layer>.<module_name>.<filename>:<function_name>"`:
+   - Example: `"modules.runtime.secret_manager.secret_cli:list_secrets"`
 
 4. **Registration Function**: MUST define `register_cli() -> None`:
    - Import `CLIManager, ModuleRegistration, Command, CommandArg` from `managers.cli_manager`
@@ -57,8 +57,8 @@ from __future__ import annotations
 import argparse
 import json
 
-from <module_type>.<module_name>.<module_name> import <ModuleClass>
-from managers.cli_manager import CLIManager, ModuleRegistration, Command, CommandArg
+from <module_layer>.<module_name>.<module_name> import <ModuleClass>
+from modules.runtime.cli_manager import CLIManager, ModuleRegistration, Command, CommandArg
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -113,12 +113,12 @@ def register_cli() -> None:
             Command(
                 name="example",
                 help="Description of example command",
-                handler="<module_type>.<module_name>.<module_name>_cli:example_command",
+                handler="<module_layer>.<module_name>.<module_name>_cli:example_command",
             ),
             Command(
                 name="with-args",
                 help="Command with arguments",
-                handler="<module_type>.<module_name>.<module_name>_cli:command_with_args",
+                handler="<module_layer>.<module_name>.<module_name>_cli:command_with_args",
                 args=[
                     CommandArg(name="name", help="Positional argument"),
                     CommandArg(name="--flag", short="-f", help="Optional flag", action="store_true"),
@@ -149,7 +149,7 @@ def register_cli() -> None:
 Command(
     name="download",
     help="Download a file",
-    handler="managers.download_manager.download_cli:download_file",
+    handler="modules.runtime.download_manager.download_cli:download_file",
     args=[
         CommandArg(name="url", help="URL to download"),
         CommandArg(name="--output", short="-o", help="Output path"),

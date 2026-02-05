@@ -4,18 +4,13 @@ Copies admin_cli.txt to configured location. If the target filename changed
 but an old file exists, creates new file without deleting old one.
 """
 
-import os
 import shutil
-import sys
 from pathlib import Path
 
+from config_manager import ConfigManager
+from logger_util import Logger
+
 SCRIPT_DIR = Path(__file__).parent.resolve()
-PROJECT_ROOT = Path.cwd()
-
-sys.path.insert(0, str(PROJECT_ROOT))
-
-from managers.config_manager import ConfigManager
-from utils.logger_util import Logger
 
 
 def refresh() -> None:
